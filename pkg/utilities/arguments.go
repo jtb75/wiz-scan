@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/jtb75/wiz-scan/pkg/utilities"
 	"github.com/sirupsen/logrus"
 )
 
