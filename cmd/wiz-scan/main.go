@@ -16,8 +16,6 @@ var log = logrus.New()
 // Set testRun to "false", "genData", or "runTestData"
 var runTest = "runTestData"
 
-var response interface{} // Declare response variable outside of main
-
 func LogInit(level string) {
 	// Map string log level to logrus.Level
 	logLevel, err := logrus.ParseLevel(level)
