@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"runtime"
 
@@ -10,6 +12,11 @@ import (
 )
 
 var log = logrus.New()
+
+// Set testRun to "false", "genData", or "runTestData"
+var runTest = "runTestData"
+
+var response interface{} // Declare response variable outside of main
 
 func LogInit(level string) {
 	// Map string log level to logrus.Level
@@ -21,8 +28,47 @@ func LogInit(level string) {
 	log.SetLevel(logLevel)
 }
 
-func main() {
+func gatherWizKnownVulns(runTest string, wizAPI *wizapi.WizAPI, resourceID string) (interface{}, error) {
+	var response interface{}
+	var err error
 
+	if runTest == "genData" || runTest == "runTestData" {
+		if runTest == "genData" {
+			response, err = wizapi.FetchAllVulnerabilities(wizAPI, resourceID)
+			if err != nil {
+				return nil, fmt.Errorf("error fetching vulnerabilities: %v", err)
+			}
+
+			jsonResponseBytes, err := json.MarshalIndent(response, "", "    ")
+			if err != nil {
+				return nil, fmt.Errorf("error marshalling JSON: %v", err)
+			}
+
+			err = os.WriteFile("sample_data/known_vulns.json", jsonResponseBytes, 0644)
+			if err != nil {
+				return nil, fmt.Errorf("error writing to file: %v", err)
+			}
+		} else {
+			data, err := os.ReadFile("sample_data/known_vulns.json")
+			if err != nil {
+				return nil, fmt.Errorf("failed to read sample data file: %v", err)
+			}
+
+			if err := json.Unmarshal(data, &response); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal sample data: %v", err)
+			}
+		}
+	} else {
+		response, err = wizapi.FetchAllVulnerabilities(wizAPI, resourceID)
+		if err != nil {
+			return nil, fmt.Errorf("error fetching vulnerabilities: %v", err)
+		}
+	}
+
+	return response, nil
+}
+
+func main() {
 	// Initialize logging with default Info level
 	LogInit("info") // Set default log level to Info
 
@@ -73,7 +119,21 @@ func main() {
 		log.Errorf("Failed to get resource ID: %v", err)
 		os.Exit(1)
 	}
-
 	log.Debugf("Matched Resource ID: %s", resourceID)
 
+	response, err := gatherWizKnownVulns(runTest, wizAPI, resourceID)
+	if err != nil {
+		log.Errorf("Error gathering known vulnerabilities: %v", err)
+		return
+	}
+
+	// Marshal the response variable into a JSON string with indentation
+	jsonResponse, err := json.MarshalIndent(response, "", "    ")
+	if err != nil {
+		log.Errorf("Error marshalling JSON response: %v", err)
+		return
+	}
+
+	// Print the JSON string
+	fmt.Println(string(jsonResponse))
 }
