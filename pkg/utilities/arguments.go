@@ -20,6 +20,7 @@ type Arguments struct {
 	Save               bool   `json:"save"`
 	Install            bool   `json:"install"`
 	Uninstall          bool   `json:"uninstall"`
+	LogLevel           string `json:"logLevel"`
 }
 
 func validateArguments(args *Arguments) error {
@@ -105,6 +106,8 @@ func ProcessArguments() (*Arguments, error) {
 	flag.BoolVar(&args.Uninstall, "uninstall", false, "Uninstall the application")
 
 	flag.Parse()
+
+	args.LogLevel = logLevel
 
 	// Enforce mutual exclusivity
 	if args.Install && args.Uninstall {
