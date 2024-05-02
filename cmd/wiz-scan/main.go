@@ -18,7 +18,7 @@ import (
 var log = logrus.New()
 
 // Set testRun to "false", "genData", or "runTestData"
-var runTest = "runTestData"
+var runTest = "false"
 
 func LogInit(level string) {
 	// Map string log level to logrus.Level
