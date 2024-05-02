@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jtb75/wiz-scan/pkg/utilities"
+	"github.com/jtb75/wiz-scan/pkg/vulnerability"
 	"github.com/jtb75/wiz-scan/pkg/wizapi"
 	"github.com/jtb75/wiz-scan/pkg/wizcli"
 	"github.com/sirupsen/logrus"
@@ -46,8 +47,6 @@ func scanDirectories(drives []string, aggregatedResults *wizcli.AggregatedScanRe
 					continue
 				} else {
 					log.Infof("Created VSS ID `%s` Mounted on: %s", shadowCopyID, mountedPath)
-					duration := 5 * time.Second
-					time.Sleep(duration)
 				}
 			}
 			if mountedPath == "" {
@@ -109,8 +108,8 @@ func scanDirectories(drives []string, aggregatedResults *wizcli.AggregatedScanRe
 	return nil
 }
 
-func gatherWizKnownVulns(runTest string, wizAPI *wizapi.WizAPI, resourceID string) (interface{}, error) {
-	var response interface{}
+func gatherWizKnownVulns(runTest string, wizAPI *wizapi.WizAPI, resourceID string) ([]wizapi.VulnerabilityNode, error) {
+	var response []wizapi.VulnerabilityNode
 	var err error
 
 	if runTest == "genData" || runTest == "runTestData" {
@@ -141,6 +140,7 @@ func gatherWizKnownVulns(runTest string, wizAPI *wizapi.WizAPI, resourceID strin
 			}
 		}
 	} else {
+		// Fetch vulnerabilities directly if not in test mode
 		response, err = wizapi.FetchAllVulnerabilities(wizAPI, resourceID)
 		if err != nil {
 			return nil, fmt.Errorf("error fetching vulnerabilities: %v", err)
@@ -150,8 +150,8 @@ func gatherWizKnownVulns(runTest string, wizAPI *wizapi.WizAPI, resourceID strin
 	return response, nil
 }
 
-// RemoveSymbolicLink removes the symbolic link created by CreateVSSSnapshot
 func RemoveSymbolicLink(path string) error {
+	// RemoveSymbolicLink removes the symbolic link created by CreateVSSSnapshot
 	err := os.Remove(path)
 	if err != nil {
 		return fmt.Errorf("failed to remove symbolic link: %v", err)
@@ -160,6 +160,9 @@ func RemoveSymbolicLink(path string) error {
 }
 
 func main() {
+
+	var assetVulns vulnerability.Asset
+
 	// Initialize logging with default Info level
 	LogInit("info") // Set default log level to Info
 
@@ -175,19 +178,31 @@ func main() {
 
 	// Set log level based on arguments
 	LogInit(args.LogLevel)
-
+	fmt.Print(args.Install)
 	// Print the detected operating system
 	log.Debug("Operating System:", operatingSystem)
 
 	// If uninstall flag is passed, initiate process
 	if args.Uninstall {
 		log.Info("Initiating Uninstall")
+		err := utilities.UninstallAndRemoveTask()
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+		fmt.Println("Uninstallation and task removal completed successfully.")
 		os.Exit(0)
 	}
 
 	// If install flag is passed, initiate process
 	if args.Install {
 		log.Info("Initiating Install")
+		err := utilities.InstallAndScheduleTask()
+		if err != nil {
+			fmt.Println("Error:", err)
+			return
+		}
+		fmt.Println("Installation and task scheduling completed successfully.")
 		os.Exit(0)
 	}
 
@@ -219,10 +234,6 @@ func main() {
 		return
 	}
 
-	if response == "" {
-		fmt.Println("Danger!")
-	}
-
 	// Initialize and authenticate wizcli
 	cleanup, wizCliPath, err := wizcli.InitializeAndAuthenticate(args.WizClientID, args.WizClientSecret)
 	if err != nil {
@@ -230,10 +241,6 @@ func main() {
 		return
 	}
 	defer cleanup()
-
-	if wizCliPath == "" {
-		fmt.Println("Danger!")
-	}
 
 	// Retrieve top-level directories
 	directories, err := utilities.GetTopLevelDirectories()
@@ -248,10 +255,72 @@ func main() {
 
 	log.Info("Initiating directory scan")
 	// Cycle through directories and initiate scan
-	directories = []string{"E:\\"}
+	//directories = []string{"E:\\"}
 	if err := scanDirectories(directories, &aggregatedResults, operatingSystem, wizCliPath); err != nil {
 		log.Errorf("Error scanning directories: %v", err)
 		return
+	}
+
+	assetVulns, err = vulnerability.CompareVulnerabilities(aggregatedResults, response, args.ScanProviderID)
+	if err != nil {
+		fmt.Printf("Error in CompareVulnerabilities: %s\n", err)
+		return
+	}
+
+	var vulnPayloadJSON []byte // Use a byte slice to hold JSON data
+
+	if len(assetVulns.VulnerabilityFindings) > 0 {
+		assetVulns.AssetIdentifier.CloudPlatform = args.ScanCloudType
+		assetVulns.AssetIdentifier.ProviderId = args.ScanProviderID
+		vulnPayload := vulnerability.IntegrationData{
+			IntegrationId: "e4341955-463f-4228-aa99-a718e9d93bb5", // Set an integration ID
+			DataSources:   []vulnerability.DataSource{},           // Initialize an empty slice of DataSources
+		}
+		// Create a DataSource and add assetVulns to it
+		dataSource := vulnerability.DataSource{
+			Id:           args.ScanSubscriptionID,
+			AnalysisDate: time.Now(),                        // Set current time as the analysis date
+			Assets:       []vulnerability.Asset{assetVulns}, // Add assetVulns here
+		}
+
+		vulnPayload.DataSources = append(vulnPayload.DataSources, dataSource)
+
+		vulnPayloadJSON, err = json.MarshalIndent(vulnPayload, "", "\t")
+		if err != nil {
+			fmt.Println("Error marshaling assetVulns to JSON:", err)
+			return
+		}
+	} else {
+		log.Infof("No new vulnerabilities found")
+		return // Exit the program gracefully
+	}
+
+	file, err := utilities.CreateTempFile()
+	if err != nil {
+		log.Errorln("Error creating temp file:", err)
+		return
+	}
+
+	defer func() {
+		// Ensure the temporary file is deleted upon exiting the function
+		if err := file.Close(); err != nil {
+			log.Errorf("Error closing file: %v", err)
+		}
+		if err := os.Remove(file.Name()); err != nil {
+			log.Errorf("Error removing temporary file: %v", err)
+		}
+	}()
+
+	log.Infoln("Temporary file created:", file.Name())
+	_, err = file.Write(vulnPayloadJSON)
+
+	if err != nil {
+		log.Errorln("Error writing JSON to temp file:", err)
+		return
+	}
+
+	if err := wizAPI.PublishVulns(file.Name()); err != nil {
+		log.Errorln("Error publishing vulnerabilities:", err)
 	}
 
 }
