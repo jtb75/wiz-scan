@@ -178,7 +178,7 @@ func main() {
 
 	// Set log level based on arguments
 	LogInit(args.LogLevel)
-	fmt.Print(args.Install)
+
 	// Print the detected operating system
 	log.Debug("Operating System:", operatingSystem)
 
