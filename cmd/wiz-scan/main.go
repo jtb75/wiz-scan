@@ -1,3 +1,15 @@
+/*
+By using this software and associated documentation files (the “Software”) you hereby agree and understand that:
+  - The use of the Software is free of charge and may only be used by Wiz customers for its internal purposes.
+  - The Software should not be distributed to third parties.
+  - The Software is not part of Wiz’s Services and is not subject to your company’s services agreement with Wiz.
+
+  THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+  TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL WIZ
+  BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+  ARISING FROM, OUT OF OR IN CONNECTION WITH THE USE OF THIS SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+*/
+
 package main
 
 import (
@@ -18,7 +30,7 @@ import (
 var log = logrus.New()
 
 // Set testRun to "false", "genData", or "runTestData"
-var runTest = "false"
+var runTest = "runTestData"
 
 func LogInit(level string) {
 	// Map string log level to logrus.Level
@@ -193,11 +205,10 @@ func main() {
 		fmt.Println("Uninstallation and task removal completed successfully.")
 		os.Exit(0)
 	}
-
 	// If install flag is passed, initiate process
 	if args.Install {
 		log.Info("Initiating Install")
-		err := utilities.InstallAndScheduleTask()
+		err := utilities.InstallAndScheduleTask(args)
 		if err != nil {
 			fmt.Println("Error:", err)
 			return

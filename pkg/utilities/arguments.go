@@ -119,8 +119,10 @@ func ProcessArguments() (*Arguments, error) {
 		return args, nil
 	}
 
+	currInstall := args.Install
 	// If the save option isn't flagged
 	if !args.Save {
+
 		// Validate the arguments
 		if err := validateArguments(args); err != nil {
 			// If validation fails, attempt to load arguments from the config file
@@ -145,5 +147,6 @@ func ProcessArguments() (*Arguments, error) {
 		}
 	}
 
+	args.Install = currInstall
 	return args, nil
 }

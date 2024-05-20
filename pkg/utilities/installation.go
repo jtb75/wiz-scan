@@ -1,11 +1,15 @@
 package utilities
 
 import (
+	"crypto/rand"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
+	"time"
 )
 
 // CopyFile copies a file from src to dst.
@@ -31,7 +35,7 @@ func CopyFile(src, dst string) error {
 }
 
 // InstallAndScheduleTask installs the application and sets up a scheduled task to run it daily.
-func InstallAndScheduleTask() error {
+func InstallAndScheduleTask(args *Arguments) error {
 	// Determine the appropriate "Program Files" directory.
 	programFilesDir := os.Getenv("ProgramFiles")
 	if programFilesDir == "" {
@@ -44,7 +48,6 @@ func InstallAndScheduleTask() error {
 	if err != nil {
 		return err
 	}
-
 	// Copy the application executable into the "Wiz-Scan" directory.
 	executablePath, err := os.Executable()
 	if err != nil {
@@ -57,11 +60,20 @@ func InstallAndScheduleTask() error {
 		return err
 	}
 
-	// Use schtasks command to create a scheduled task.
-	cmd := exec.Command("schtasks", "/Create", "/SC", "DAILY", "/TN", "WizScanTask", "/TR", destinationPath, "/ST", "00:00")
-	err = cmd.Run()
+	// Save configuration to file
+	configFilePath := filepath.Join(wizScanDir, "config.txt")
+	err = saveConfig(args, configFilePath)
 	if err != nil {
-		return err
+		return fmt.Errorf("error saving configuration: %v", err)
+	}
+
+	// Concatenate the destinationPath with the -config option and the configFilePath
+	taskCommand := fmt.Sprintf("%s -config %s", destinationPath, configFilePath)
+
+	// Use schtasks command to create a scheduled task.
+	err = createScheduledTask("WizScanTask", taskCommand)
+	if err != nil {
+		return fmt.Errorf("error creating scheduled task: %v", err)
 	}
 
 	return nil
@@ -109,4 +121,57 @@ func UninstallAndRemoveTask() error {
 	}
 
 	return nil
+}
+
+func createScheduledTask(taskName, destinationPath string) error {
+	taskExists, err := taskExists(taskName)
+	if err != nil {
+		return err
+	}
+	if taskExists {
+		fmt.Printf("Task '%s' already exists\n", taskName)
+		return nil
+	}
+
+	// Generate random start time between 8:00 PM and 4:00 AM
+	startTime := time.Date(0, 1, 1, 20, 0, 0, 0, time.UTC) // Start time: 8:00 PM
+	randomMinutes, err := randInt(480)                     // Random number of minutes between 0 and 480 (8 hours)
+	if err != nil {
+		return fmt.Errorf("error generating random number: %v", err)
+	}
+	startTime = startTime.Add(time.Duration(randomMinutes) * time.Minute)
+
+	// Format start time as HH:mm
+	startTimeFormatted := startTime.Format("15:04")
+
+	cmd := exec.Command("schtasks", "/Create", "/SC", "DAILY", "/TN", taskName, "/TR", destinationPath, "/ST", startTimeFormatted)
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("error creating scheduled task: %v", err)
+	}
+	fmt.Printf("Scheduled task '%s' created successfully with start time: %s\n", taskName, startTimeFormatted)
+	return nil
+}
+
+func taskExists(taskName string) (bool, error) {
+	cmd := exec.Command("schtasks", "/Query", "/TN", taskName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if strings.Contains(string(output), "ERROR: The system cannot find the file specified.") {
+			// Task doesn't exist
+			return false, nil
+		}
+		return false, fmt.Errorf("error checking task existence: %v", err)
+	}
+	// Task exists
+	return true, nil
+}
+
+// randInt generates a random integer between 0 and max.
+func randInt(max int) (int, error) {
+	n, err := rand.Int(rand.Reader, big.NewInt(int64(max)))
+	if err != nil {
+		return 0, err
+	}
+	return int(n.Int64()), nil
 }
