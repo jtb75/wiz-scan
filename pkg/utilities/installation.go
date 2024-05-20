@@ -144,7 +144,8 @@ func createScheduledTask(taskName, destinationPath string) error {
 	// Format start time as HH:mm
 	startTimeFormatted := startTime.Format("15:04")
 
-	cmd := exec.Command("schtasks", "/Create", "/SC", "DAILY", "/TN", taskName, "/TR", destinationPath, "/ST", startTimeFormatted)
+	// Use schtasks command to create a scheduled task.
+	cmd := exec.Command("schtasks", "/Create", "/SC", "DAILY", "/TN", taskName, "/TR", destinationPath, "/ST", startTimeFormatted, "/F", "/NP", "/IT", "/RU", "System", "/RL", "HIGHEST")
 	err = cmd.Run()
 	if err != nil {
 		return fmt.Errorf("error creating scheduled task: %v", err)
