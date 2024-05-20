@@ -68,7 +68,7 @@ func InstallAndScheduleTask(args *Arguments) error {
 	}
 
 	// Concatenate the destinationPath with the -config option and the configFilePath
-	taskCommand := fmt.Sprintf("%s -config %s", destinationPath, configFilePath)
+	taskCommand := fmt.Sprintf("\"%s\" -config \"%s\"", destinationPath, configFilePath)
 
 	// Use schtasks command to create a scheduled task.
 	err = createScheduledTask("WizScanTask", taskCommand)
@@ -129,7 +129,6 @@ func createScheduledTask(taskName, destinationPath string) error {
 		return err
 	}
 	if taskExists {
-		fmt.Printf("Task '%s' already exists\n", taskName)
 		return nil
 	}
 
@@ -145,12 +144,11 @@ func createScheduledTask(taskName, destinationPath string) error {
 	startTimeFormatted := startTime.Format("15:04")
 
 	// Use schtasks command to create a scheduled task.
-	cmd := exec.Command("schtasks", "/Create", "/SC", "DAILY", "/TN", taskName, "/TR", destinationPath, "/ST", startTimeFormatted, "/F", "/NP", "/IT", "/RU", "System", "/RL", "HIGHEST")
+	cmd := exec.Command("schtasks", "/Create", "/SC", "DAILY", "/TN", taskName, "/TR", destinationPath, "/ST", startTimeFormatted, "/F", "/NP")
 	err = cmd.Run()
 	if err != nil {
 		return fmt.Errorf("error creating scheduled task: %v", err)
 	}
-	fmt.Printf("Scheduled task '%s' created successfully with start time: %s\n", taskName, startTimeFormatted)
 	return nil
 }
 

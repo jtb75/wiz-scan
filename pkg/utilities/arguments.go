@@ -21,6 +21,7 @@ type Arguments struct {
 	Install            bool   `json:"install"`
 	Uninstall          bool   `json:"uninstall"`
 	LogLevel           string `json:"logLevel"`
+	License            bool   `json:"license"`
 }
 
 func validateArguments(args *Arguments) error {
@@ -104,10 +105,27 @@ func ProcessArguments() (*Arguments, error) {
 	flag.StringVar(&configFilePath, "config", "config.json", "Path to the configuration file (ignored if install flag is set)")
 	flag.BoolVar(&args.Install, "install", false, "Install the application")
 	flag.BoolVar(&args.Uninstall, "uninstall", false, "Uninstall the application")
+	flag.BoolVar(&args.License, "license", false, "Print License and Support Information")
 
 	flag.Parse()
 
 	args.LogLevel = logLevel
+
+	// Print Support info
+	if args.License {
+		fmt.Println(`
+		By using this software and associated documentation files (the “Software”) you hereby agree and understand that:
+		- The use of the Software is free of charge and may only be used by Wiz customers for its internal purposes.
+		- The Software should not be distributed to third parties.
+		- The Software is not part of Wiz’s Services and is not subject to your company’s services agreement with Wiz.
+	  
+		THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+		TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL WIZ
+		BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+		ARISING FROM, OUT OF OR IN CONNECTION WITH THE USE OF THIS SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+		`)
+		os.Exit(0)
+	}
 
 	// Enforce mutual exclusivity
 	if args.Install && args.Uninstall {
