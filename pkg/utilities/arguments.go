@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 )
 
 type Arguments struct {
@@ -52,18 +53,31 @@ func validateArguments(args *Arguments) error {
 
 func saveConfig(config *Arguments, filePath string) error {
 	config.Install = false // Ensure Install is always false when saving config
+
+	// Get the directory path from the file path
+	dir := filepath.Dir(filePath)
+
+	// Check if the directory exists, if not, create it
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory: %w", err)
+		}
+	}
+
 	// Marshal the config struct to JSON
 	data, err := json.MarshalIndent(config, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
+
 	// Encode the JSON data using base64
 	encodedData := base64.StdEncoding.EncodeToString(data)
+
 	// Convert encoded data to byte slice for writing to file
 	byteData := []byte(encodedData)
+
 	// Write the base64 encoded data to the file with 0600 permissions to ensure the file is only accessible to the user
-	err = os.WriteFile(filePath, byteData, 0600)
-	if err != nil {
+	if err := os.WriteFile(filePath, byteData, 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
